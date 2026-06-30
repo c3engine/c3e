@@ -7,6 +7,62 @@ Most recent session at TOP.
 
 ---
 
+## Session 12 — Phase 13.1–13.3: Probcut, CorrectionHistory, Singular Extensions
+
+**Date**: 2026-06-30
+**Build entering session**: #129 green (Phase 12 complete, Phase 13 untouched)
+**Build leaving session**: #136 green
+
+### What Was Done
+- 13.1 — Wired Probcut (`pruning::try_probcut`/`should_try_probcut`) into
+  `alpha_beta.rs`, called after IIR and before move generation.
+- 13.2 — Wired CorrectionHistory into `alpha_beta.rs`: raw static eval is
+  corrected via `info.correction_history.apply()` before all pruning
+  decisions (razoring, null move, futility); the raw (uncorrected) eval and
+  final `best_score` feed `correction_history.update()` at node exit
+  (skipped when in check, search aborted, or result is a mate score).
+  Added `correction_history: CorrectionHistory` field to `SearchInfo`
+  (`src/search/mod.rs`), persisted across searches like history/countermoves.
+- 13.3 — Singular extensions: TT move gets a verification search (reduced
+  depth, excluded from the normal move loop) at `depth >= MIN_DEPTH_SINGULAR
+  (6)`. If every alternative fails to reach `tt_score - 2*depth`, the TT
+  move is "singular" and gets +1 ply when actually searched.
+
+### Decisions Made
+- **D16** (new — see DECISIONS.md): introduced `alpha_beta_with_excluded()`
+  as the real search body; public `alpha_beta()` is now a thin wrapper
+  passing `excluded = Move::NULL`. Keeps the public signature — and every
+  existing call site in `iterative.rs` and all test modules — untouched.
+
+### Bugs Fixed
+- **Build #129→#136**: `MIN_DEPTH_SINGULAR` constant was added to
+  `search/mod.rs` but never added to the `use crate::search::{...}` import
+  list in `alpha_beta.rs` — bare reference failed to resolve (E0425).
+  Fixed by adding it to the existing import block. One-line delta, confirmed
+  green at #136.
+
+### Next Session Start Point
+1. Confirm #136 test count (should still be 296+ tests, none removed) —
+   spot check `test_iterative_deepening_depth_increases` (depth 8, fixed)
+   and `test_aspiration_window_handles_score_drop` (depth 6) since these are
+   the two existing tests most likely to exercise the new singular-extension
+   path (flagged as a risk last session, came back green so no action needed).
+2. Start **13.4 — Lazy SMP** (multi-threaded parallel search). This is the
+   biggest Phase 13 item — needs `Arc<AtomicBool>` stop flag shared across
+   threads, a way to share/synchronize the TT (already lock-free per D4, so
+   no change needed there), and per-thread `SearchInfo` (history/killers
+   not safely shareable — each thread needs its own, root move merged at
+   the end). Read `src/search/mod.rs` and `src/main.rs` fresh before
+   starting since main.rs owns the single `EngineState` that Lazy SMP will
+   need to fan out from.
+3. Alternative if 13.4 feels too large for one session: do 13.5
+   (quiescence improvements) or 13.6 (history gravity/continuation history)
+   first — both are smaller, contained to existing single-threaded files.
+
+---
+
+---
+
 ## Session 11 — Phases 10/11/12: Release Pipeline + WASM + Browser UI
 
 **Date**: 2026-06-30
