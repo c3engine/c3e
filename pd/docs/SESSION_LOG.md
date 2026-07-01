@@ -1,9 +1,32 @@
-# SESSION_LOG.md 
+# SESSION_LOG.md
 # Pet Dragon — Session History
 
 ## Format
 Each entry: date, what was built, decisions made, bugs fixed, next session start point.
 Most recent session at TOP.
+
+---
+
+## Session 13 — 2026-07 (Phase 13.4 Lazy SMP)
+
+**Built:**
+- Phase 13.4 Lazy SMP complete across 6 files:
+  - `src/tt/mod.rs` — `store()` changed to `&self`, `unsafe impl Send/Sync` added
+  - `src/search/mod.rs` — `Arc<AtomicBool> stop_flag` in SearchInfo, `new_with_stop()` constructor, `is_time_up()` checks shared flag
+  - `src/search/alpha_beta.rs` — all `tt: &mut TranspositionTable` → `tt: &TranspositionTable`
+  - `src/search/iterative.rs` — same signature change + test call sites updated
+  - `src/search/pruning.rs` — `try_probcut` signature updated
+  - `src/main.rs` — full rewrite: `go` non-blocking, `stop` works, N-1 helper threads, history preserved across moves
+
+**Architecture decisions:**
+- TT shared via Arc, lock-free writes per D4 (benign races, key verification in probe)
+- Each thread has own SearchInfo (no killer/history sharing — simpler, avoids data races)
+- Main thread returns SearchInfo on join; history/countermoves/correction_history merged back
+- Helper threads use infinite TC; killed by shared stop_flag when main finishes
+- bestmove printed inside spawned thread (not main loop) — correct UCI semantics
+
+**Next session start point:**
+Phase 14.1 — Evaluation improvements: PST (piece-square tables) from Ethereal. Read `src/eval/tables.rs` first (may not exist yet). Then implement material.rs integration with full HCE.
 
 ---
 

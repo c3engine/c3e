@@ -1,4 +1,4 @@
-# ROADMAP.md 
+# ROADMAP.md
 # Pet Dragon — Development Roadmap
 
 ## How to Read This File
@@ -145,7 +145,7 @@
 - [x] 13.1 — Wire Probcut into alpha_beta.rs (defined in pruning.rs)
 - [x] 13.2 — Wire CorrectionHistory into eval (defined in pruning.rs)
 - [x] 13.3 — Singular extensions (Build #136 green)
-- [ ] 13.4 — Lazy SMP (multi-threaded parallel search)
+- [x] 13.4 — Lazy SMP (multi-threaded parallel search)
 - [ ] 13.5 — Improve quiescence search (better move ordering, checks in qsearch)
 - [ ] 13.6 — History gravity and continuation history
 - [ ] 13.7 — Node count benchmarking vs known engines
