@@ -146,7 +146,7 @@
 - [x] 13.2 — Wire CorrectionHistory into eval (defined in pruning.rs)
 - [x] 13.3 — Singular extensions (Build #136 green)
 - [x] 13.4 — Lazy SMP (multi-threaded parallel search)
-- [ ] 13.5 — Improve quiescence search (better move ordering, checks in qsearch)
+- [x] 13.5 — Improve quiescence search: in-check evasions + checkmate detection + per-capture delta pruning + quiet checks at qs_depth=0
 - [ ] 13.6 — History gravity and continuation history
 - [ ] 13.7 — Node count benchmarking vs known engines
 

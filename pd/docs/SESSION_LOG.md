@@ -7,6 +7,44 @@ Most recent session at TOP.
 
 ---
 
+## Session 14 — 2026-07 (Phase 13.5 Quiescence Improvements)
+
+**Built:**
+- Phase 13.5 complete across 2 files:
+  - `src/search/alpha_beta.rs` — `quiescence()` rewritten with 4 improvements:
+    1. Added `qs_depth: i32` parameter (0 = allow quiet checks; <0 = captures only)
+    2. In-check path: `generate_moves()` for all evasions, no stand-pat allowed,
+       empty move list → `-(MATE_SCORE - ply)` checkmate score
+    3. Per-capture delta pruning: `stand_pat + captured_val + 200 < alpha → skip`
+       (more precise than global delta; uses `QS_CAPTURE_VALUES[6]` constant)
+    4. Quiet checks at qs_depth ≥ 0: quiet moves with positive SEE that give check
+       searched after captures, recurse with qs_depth = -1 (1 level deep only)
+    - Both call sites updated (leaf node, razoring) → pass `qs_depth = 0`
+    - 3 new tests: `test_qsearch_in_check_generates_evasions`,
+      `test_qsearch_checkmate_detection`, `test_qsearch_qs_depth_parameter_no_panic`
+  - `src/search/pruning.rs` — `try_probcut`: quiescence called with `qs_depth = -1`
+    (captures only; avoids quiet-check overhead in probcut verification)
+
+**Architecture decisions:**
+- qs_depth = 0 at all main-search → qsearch entries (leaf node + razoring)
+- qs_depth = -1 for probcut and all recursive qsearch calls
+- In-check evasions use `score_moves()` (killers + history) for ordering quality
+- Quiet check recursion is capped at 1 level (passes -1) to prevent tree explosion
+- History gravity already present in `update_history()` — no new code needed for that half of 13.6
+
+**Next session start point:**
+Phase 13.6 — Continuation history (history gravity already implemented).
+- Add `cont_hist: Box<[[[i32; 64]; 12]; 64]>` to `SearchInfo` in `src/search/mod.rs`
+  (64 prev_to squares × 12 piece-color types × 64 curr_to squares = 192KB, needs Box)
+- Initialize in `SearchInfo::new()` and `new_with_stop()`
+- Clear in `reset_for_search()`
+- In `src/search/ordering.rs` `score_move()`: add cont_hist lookup for quiet moves
+  `score += info.cont_hist[prev_to][piece_idx][to]` (needs prev_move propagated)
+- In `src/search/ordering.rs` `update_ordering_on_cutoff()`: update cont_hist on beta cutoff
+- Then 13.7: node count benchmarking vs Ethereal at fixed depth
+
+---
+
 ## Session 13 — 2026-07 (Phase 13.4 Lazy SMP)
 
 **Built:**
