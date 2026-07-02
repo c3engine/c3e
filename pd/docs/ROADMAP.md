@@ -147,7 +147,10 @@
 - [x] 13.3 — Singular extensions (Build #136 green)
 - [x] 13.4 — Lazy SMP (multi-threaded parallel search)
 - [x] 13.5 — Improve quiescence search: in-check evasions + checkmate detection + per-capture delta pruning + quiet checks at qs_depth=0
-- [ ] 13.6 — History gravity and continuation history
+- [x] 13.6 — History gravity and continuation history
+            cont_hist[prev_to][piece_idx][to] added to SearchInfo (Box, 192KB heap)
+            Used in score_move() for quiet moves; updated in update_ordering_on_cutoff()
+            Gravity formula matches regular history; zeroed each search
 - [ ] 13.7 — Node count benchmarking vs known engines
 
 ---

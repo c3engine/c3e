@@ -7,6 +7,35 @@ Most recent session at TOP.
 
 ---
 
+## Session 15 — 2026-07 (Phase 13.6 Continuation History)
+
+**Built:**
+- Phase 13.6 complete across 3 files:
+  - `src/search/mod.rs` — Added `cont_hist: Box<[[[i32; 64]; 12]; 64]>` to `SearchInfo`.
+    Indexed as `cont_hist[prev_to][piece_idx][curr_to]` where `piece_idx = kind*2 + color`.
+    Methods: `get_cont_hist()`, `update_cont_hist()` (same gravity formula as history).
+    Zeroed in `reset_for_search()`; not preserved across moves (position-dependent).
+    2 new tests: `test_cont_hist_update_get`, `test_cont_hist_reset_on_search`.
+  - `src/search/ordering.rs` — `score_move()` gains `prev_move: Move` parameter;
+    cont_hist score added to quiet-move history when `prev_move != NULL`.
+    `update_ordering_on_cutoff()` gains `pos: &Position` parameter; updates cont_hist
+    for the cutoff move (bonus) and all quiets tried before it (penalty).
+    Updated existing test; added `test_cont_hist_boosts_quiet_score`.
+  - `src/search/alpha_beta.rs` — One-line delta: pass `pos` to `update_ordering_on_cutoff()`.
+
+**Architecture decisions:**
+- None new — cont_hist follows same gravity formula as D5/history convention.
+
+**Next session start point:**
+Phase 13.7 — Node count benchmarking vs known engines.
+- Implement a `perft_bench` or fixed-depth node count test comparing Pet Dragon vs
+  reference (Ethereal/Stockfish) at depth 8–10 from standard start.
+- Add to `tests/` or as a binary benchmark in `benches/` (Criterion).
+- Baseline: record nodes searched at depth 10, note NPS.
+- Then Phase 14 (Texel tuning) vs going straight to Phase 16 (NNUE) — decision point.
+
+---
+
 ## Session 14 — 2026-07 (Phase 13.5 Quiescence Improvements)
 
 **Built:**
