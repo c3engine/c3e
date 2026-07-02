@@ -4,6 +4,132 @@ Append-only. One entry per session. Most recent at top.
 
 ---
 
+## Session 9 — Transposition Table (Zobrist Hashing) + FastPy Transpiler Extensions
+**Status:** COMPLETE ✅
+
+### Completed
+
+**FastPy transpiler (3 files changed):**
+- `parser.py`: Added `IRGlobal` dataclass for mutable module-level arrays/scalars.
+  `_try_constant()` now returns bool; new `_try_global()` handles non-Final
+  annotated module-level declarations. `_resolve_target()` extended to support
+  arbitrary subscript index expressions (`ZK_TABLE[ptype * 64 + sq]`).
+  `IRModule` gains `globals_: list` field.
+- `type_system.py`: `_check_global()` validates IRGlobal nodes.
+  `_global_names` set pre-seeds `declared` in `_check_function()` so functions
+  can write to global arrays without false "first use, no annotation" errors.
+- `emitter.py`: `_emit_globals()` emits C++ global variables and zero-init arrays
+  (`uint64_t TT_HASH[1048576] = {};`) in BSS segment — zero allocation, zero cost.
+
+**engine.py (FastPy dialect, delta patches):**
+- Added TT constants: `TT_SIZE`, `TT_MASK`, `TT_EXACT/LOWER/UPPER`
+- Added Zobrist constants: `ZK_GOLDEN`, `ZK_SIDE`, `ZK_CASTLE_*`, `ZK_EP_*`
+- Added global arrays: `TT_HASH/SCORE/DEPTH/FLAG[1048576]`, `ZK_TABLE[768]`,
+  `ZK_TABLE_INIT[1]`
+- Added `hash: uint64 = 0` field to `BoardState.__init__`
+- Added free functions: `zk_piece()`, `zk_sq()`, `init_zk_table()`,
+  `zk_ep_key()`, `compute_hash(board)` (free function, not method — D-26)
+- Rewrote `make_move()` with full incremental Zobrist hash update (XOR in/out
+  for every piece move, capture, castling rook, EP pawn, side, castling rights,
+  EP file)
+- Added `tt_probe()` and `tt_store()` with exact/lower/upper bound semantics
+- Updated `alpha_beta()`: TT probe at entry, TT store with correct flag at exit
+- Updated `find_best_move()`: calls `init_zk_table()` once on first call
+
+**run.py (full file, changed):**
+- Python-mode init block resizes TT arrays to 1M entries and ZK_TABLE to 768
+- `_apply_position()` calls `compute_hash(board)` to seed incremental hash
+- `_alpha_beta_py()` updated with TT probe + store matching compiled semantics
+- Imports updated for all new symbols
+
+### Key results
+- Nodes searched (depth 7): **134,976,638 → 46,640,189 (-65%)**
+- Wall time (depth 7): **30.4s → 23.0s (-24%)**
+- perft(6): **119,060,324** (correct, unchanged)
+- 169/169 tests passing, `fastpy check` zero errors, zero C++ compiler warnings
+
+### Key decisions
+- D-29: `compute_hash()` must be a free function, not a BoardState method.
+  Struct methods in FastPy are emitted inside the struct definition, which
+  appears before free functions. `compute_hash()` calls `lsb()`/`pop_lsb()`
+  which are free functions — calling them from inside the struct causes C++
+  "not declared in scope" errors. (D-26 applies to struct methods too.)
+- D-30: `zk_piece()` inlining uses `idx * ZK_GOLDEN` in two steps to avoid
+  C++ operator precedence warnings. FastPy's `& FULL_BOARD` bitwise wrap emits
+  as `& (18446744073709551615ULL)` which causes pedantic warnings with inline
+  multiply chains. Two-step via `idx: uint64` intermediate variable avoids this.
+- D-31: ZK_TABLE precomputed lookup replaces per-call `zk_piece()` multiply in
+  `make_move()` hot path. `init_zk_table()` fills 768 entries once on first
+  `find_best_move()` call. `zk_sq()` is a single array index — no multiply.
+- D-32: Python-mode TT arrays start as `[]` (FastPy dialect for C++ `= {}`).
+  run.py resizes them with `[0] * N` immediately after import. This is the
+  correct separation: engine.py declares, run.py initializes for Python mode.
+
+### Next (ROADMAP Phase 5 remaining)
+- Null move pruning (R&D: large NPS gain, moderate risk)
+- Late Move Reductions (LMR) — cut nodes on quiet moves tried late
+- Aspiration windows around iterative deepening
+- Move TT to inform move ordering (hash move first)
+
+---
+
+## Session 8 — Phase 4: PST Evaluation + Checkmate/Stalemate Detection
+**Date:** 2026-06-30
+**Status:** COMPLETE ✅
+
+### Completed
+- `pst_pawn_sq/knight_sq/bishop_sq/rook_sq/king_sq(rank, file[, is_white]) -> int32`
+  — separable rank+file arithmetic PSTs, no lookup arrays
+- `pst_sum(pieces, is_white, ptype) -> int32` — lsb/pop_lsb iteration + per-square PST lookup
+- `evaluate()` rewritten: material + PST bonuses, perspective-correct
+  (verified: starting position evaluates to exactly 0 — fully symmetric)
+- `is_side_to_move_in_check(board) -> bool8` — NEW function. `is_in_check()`
+  checks the side that JUST moved (for move legality filtering); checkmate
+  detection needs the side TO move — a different question. Caught via test failure.
+- `alpha_beta()`: count==0 now returns `NEG_INF + depth` (checkmate, prefers
+  shorter mates) or `0` (stalemate), using `is_side_to_move_in_check`
+- `run.py`: `_alpha_beta_py` updated to match; `default_depth` 5→4 (PST
+  per-node cost pushed bare `go` past comfortable UCI response time)
+- `tests/test_phase5.py` NEW — 52 tests (PST squares, pst_sum, evaluate
+  symmetry/perspective, checkmate via Fool's Mate, stalemate via constructed
+  position, search-prefers-centre-pawns integration)
+- **169/169 tests passing** (117 prior + 52 new)
+- `fastpy check engine.py` → zero errors ✅
+- `fastpy emit` → 1384 lines C++, `g++ -O3 -march=native -mpopcnt -mbmi -mbmi2`
+  compiles with **zero warnings** ✅
+- Full UCI smoke test: engine now scores `cp 30` instead of `cp 0` at depth 1
+  and opens with `Nc3` (PST-favoured centre development) instead of a flat-eval move
+
+### Key Decisions
+- D-26: PST functions placed before `evaluate()` in file order — FastPy's
+  emitter does not forward-declare free functions; call-before-define is a
+  C++ compile error. Appending new functions at file end only works if
+  nothing earlier in the file calls them.
+- D-27: `is_side_to_move_in_check()` added as a separate function from
+  `is_in_check()` rather than reusing/renaming it. `is_in_check()` is load-
+  bearing for `generate_legal_moves()` (checks the side that just moved);
+  changing its semantics would silently break move legality filtering.
+- D-28: `default_depth` (bare `go`, no time/depth params) lowered 5→4 in
+  run.py. PST evaluation runs `pst_sum`'s lsb/pop_lsb loop over every piece
+  at every quiescence leaf — measurably more expensive per node than the
+  old material-only `evaluate()`. No mid-search time abort exists yet
+  (time is only checked between iterative-deepening depths), so a slow
+  depth 5 search currently cannot be interrupted once started.
+
+### Files changed
+- fastpy-engine/engine.py (1549 → 1781 lines, +232 lines)
+- fastpy-engine/run.py (488 → 495 lines, 3-line delta: import, check fn, default_depth)
+- fastpy-engine/tests/test_phase5.py (NEW, 519 lines, 52 tests)
+
+### Next
+- Mid-search time abort (node-count or wall-clock check inside alpha_beta/
+  quiescence, not just between depths) — needed before raising default_depth
+  back up or trusting `go movetime`/`wtime` budgets under PST's higher cost
+- Null move pruning
+- Transposition table (Zobrist hashing)
+
+---
+
 ## Session 7 — Phase 4: Search Improvements
 **Date:** 2026-06-29
 **Status:** COMPLETE ✅

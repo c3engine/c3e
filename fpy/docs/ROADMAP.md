@@ -101,14 +101,25 @@ Sprint-level tracking. Checked = done. Unchecked = active or upcoming.
 - [x] Move ordering (MVV-LVA captures first, selection sort)
 - [x] Quiescence search (stand-pat + capture search at leaf nodes)
 - [x] Iterative deepening with time management (movetime, wtime/btime, infinite)
-- [ ] Piece-Square Tables (PST) evaluation
-- [ ] Null move pruning
-- [ ] Transposition table (Zobrist hashing)
-- [ ] Checkmate vs stalemate detection (return -INF for mate, 0 for stalemate)
+-  [x] Piece-Square Tables (PST) evaluation — pawns/knights/bishops/rooks/king
+-  [x] Checkmate vs stalemate detection (NEG_INF+depth for mate, 0 for stalemate)
 
 ---
 
-## Phase 5 — Elite Engine
+## Phase 5 — Transposition Table & Pruning
+
+- [x] Transposition table (Zobrist hashing) — always-replace, EXACT/LOWER/UPPER
+- [x] Zobrist incremental hash in make_move
+- [x] FastPy transpiler: IRGlobal, global array emission, subscript-expr targets
+- [ ] Null move pruning
+- [ ] Late Move Reductions (LMR)  
+- [ ] Hash move ordering (try TT move first before MVV-LVA)
+- [ ] Aspiration windows in iterative deepening
+
+
+---
+
+## Phase 6 — Elite Engine
 
 - [ ] NNUE neural network evaluation
 - [ ] Late Move Reductions (LMR)
